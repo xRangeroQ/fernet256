@@ -73,15 +73,20 @@ class AES256:
 
     # Decrypt
     def Decrypt(self, Cipher_Text: bytes, Time_To_Live: int = None) -> bytes:
-        # Decode BASE64 on Data
+        # Decode BASE64
         cipher_text=base64.urlsafe_b64decode(Cipher_Text)
+
+        # Base64 encode control
+        reencoded=base64.urlsafe_b64encode(cipher_text)
+        if reencoded!=Cipher_Text:
+            raise LengthError("Cipher text contains trailing or altered data!")
 
         # Hmac Control
         hmac_signature=cipher_text[-self.__HMAC_LEN:]
-        cipher_text_hmac_signature=hmac.new(self._key[32:], cipher_text[:-32], hashlib.sha256).digest()
+        cipher_text_hmac_signature=hmac.new(self._key[32:], cipher_text[:-self.__HMAC_LEN], hashlib.sha256).digest()
         if not hmac.compare_digest(hmac_signature, cipher_text_hmac_signature):
             raise DecryptionError("Signature does not match!")
-        
+
         # Extract Values
         ver=cipher_text[
             0:self.__VERSION_LEN
@@ -100,6 +105,7 @@ class AES256:
             print(self._VER, ver)
             raise DecryptionError("Incompatible version!")
         
+        
         # Timestamp Control
         if Time_To_Live is not None:
             if int(time.time()) - int.from_bytes(timestamp) > Time_To_Live:
@@ -117,3 +123,16 @@ class AES256:
     @staticmethod
     def generate_key() -> bytes:
         return base64.urlsafe_b64encode(get_random_bytes(64))
+
+
+# Test Lab
+if __name__ == "__main__":
+    key=AES256.generate_key()
+    cipher=AES256(key)
+
+    s=time.perf_counter()
+    cipher_text=cipher.Encrypt(b'')
+    plain_text=cipher.Decrypt(cipher_text)
+    e=time.perf_counter()
+
+    print(f"\nKey: {key}\nCipher Text: {cipher_text}\nPlain Text: {plain_text}\nElapsed Time: {e-s}\n")
